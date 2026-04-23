@@ -1,9 +1,19 @@
-import NextAuth from "next-auth";
+import NextAuth,{CredentialsSignin} from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import connectDB from "./lib/db";
 import User from "./models/user_model";
 import bcrypt from "bcryptjs";
+
+class UserNotFoundError extends CredentialsSignin {
+  code = "USER_NOT_FOUND"
+}
+
+class WrongPasswordError extends CredentialsSignin {
+  code = "WRONG_PASSWORD"
+}
+
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
     Credentials({
@@ -12,8 +22,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials, request) {
+        console.log("=== AUTHORIZE CALLED ===", credentials?.email)
         if (!credentials?.email || !credentials?.password) {
-          throw new Error("Missing credentials");
+          return null 
         }
 
         await connectDB();
@@ -22,13 +33,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const user = await User.findOne({ email });
         if (!user) {
           console.log("User not EXIst");
-          throw new Error("User Does not Exist");
+           throw new UserNotFoundError() 
         }
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) {
           console.log("User Does not Match");
-          throw new Error("Incorrect Password");
+          throw new WrongPasswordError() 
         }
 
         return {
